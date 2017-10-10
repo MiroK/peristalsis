@@ -112,16 +112,17 @@ if __name__ == '__main__':
 
     x, y = SpatialCoordinate(mesh)
     # The mapping
-    fmap = as_vector((x+f, y))
+    r = x+f
+    fmap = as_vector((r, y))
     F = grad(fmap)
     J = det(F)
 
     Grad = lambda arg: dot(grad(arg), inv(F))
     Div = lambda arg: inner(grad(arg), inv(F))
 
-    a = inner(Grad(u), Grad(v))*J*dx + inner(p, Div(v))*J*dx +\
-        inner(q, Div(u))*J*dx
-    L = inner(Constant((0, 0)), v)*J*dx
+    a = inner(Grad(u), Grad(v))*J*r*dx + inner(p, Div(v))*J*r*dx +\
+        inner(q, Div(u))*J*r*dx
+    L = inner(Constant((0, 0)), v)*J*r*dx
               
     bcs = [DirichletBC(W.sub(0), bdry_velocity, 'near(x[0], 0.5)'),
            DirichletBC(W.sub(0), Constant((0, 0)), 'near(x[0], 1)')]
@@ -147,7 +148,7 @@ if __name__ == '__main__':
     gen = mapping_generator(f, bdry_expr, bdry_chi)
 
     t_min = []
-    u_out, p_out = File('./data/f_uh.pvd'), File('./data/f_ph.pvd')
+    u_out, p_out = File('./data/F_uh.pvd'), File('./data/F_ph.pvd')
 
     S = FunctionSpace(mesh, 'DG', 0)
     for t in np.linspace(0, 5, 200):
