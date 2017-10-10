@@ -75,6 +75,9 @@ if __name__ == '__main__':
     k_value = pi
     c_value = 0.5
     t_value = 0.0
+
+    h_top = Constant(0.4)
+    h_bottom = Constant(0.0)
     
     # Variables
     x, y, t = sp.symbols('x[0] x[1] t')
@@ -100,6 +103,15 @@ if __name__ == '__main__':
     bdry_expr = Expression('near(x[0], 0.5) ? %s : 0' % ccode(bdry_motion).replace('M_PI', 'pi'),
                            A=A_value, k=k_value, c=c_value, t=t_value, degree=3)
 
+    top, bottom = 2, 1 
+    top_chi = CompiledSubDomain('near(x[1], 1)')
+    bottom_chi = CompiledSubDomain('near(x[1], -1)')
+
+    bdries = FacetFunction('size_t', mesh, 0)
+    top_chi.mark(bdries, top)
+    bottom_chi.mark(bdries, bottom)
+    
+
     # ----------------------------------------------------------------
     
     v_elm = VectorElement('Lagrange', triangle, 2)
@@ -111,6 +123,7 @@ if __name__ == '__main__':
     v, q = TestFunctions(W)
 
     x, y = SpatialCoordinate(mesh)
+    n = FacetNormal(mesh)
     # The mapping
     r = x+f
     fmap = as_vector((r, y))
@@ -120,9 +133,13 @@ if __name__ == '__main__':
     Grad = lambda arg: dot(grad(arg), inv(F))
     Div = lambda arg: inner(grad(arg), inv(F))
 
-    a = inner(Grad(u), Grad(v))*J*r*dx + inner(p, Div(v))*J*r*dx +\
-        inner(q, Div(u))*J*r*dx
-    L = inner(Constant((0, 0)), v)*J*r*dx
+    a = inner(Grad(u), Grad(v))*J*r*dx + inner(u[0]/r, v[0]/r)*J*r*dx +\
+        inner(p, Div(v))*J*r*dx + inner(p, v[0]/r)*J*r*dx +\
+        inner(q, Div(u))*J*r*dx + inner(q, u[0]/r)*J*r*dx
+    
+    L = inner(Constant((0, 0)), v)*J*r*dx + \
+        h_top*inner(v, dot(transpose(inv(F)), n))*J*ds(top) +\
+        h_bottom*inner(v, dot(transpose(inv(F)), n))*J*ds(bottom)
               
     bcs = [DirichletBC(W.sub(0), bdry_velocity, 'near(x[0], 0.5)'),
            DirichletBC(W.sub(0), Constant((0, 0)), 'near(x[0], 1)')]
