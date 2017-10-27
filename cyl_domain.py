@@ -27,7 +27,7 @@ def as_expression(expr, degree=4, **kwargs):
     return Expression(expr_body(expr), degree=degree, **kwargs)
 
 
-def mapping_generator(f, bdry_expr, bdry_chi):
+def mapping_generator(f, bdries, expressions, tags):
     '''TODO'''
     V = f.function_space()
     u = TrialFunction(V)
@@ -36,7 +36,8 @@ def mapping_generator(f, bdry_expr, bdry_chi):
     a = inner(grad(u), grad(v))*dx
     L = inner(Constant(0), v)*dx
 
-    bc = DirichletBC(V, bdry_expr, bdry_chi)
+    assert len(expressions) == len(tags)
+    bc = [DirichletBC(V, expr, bdries, tag) for expr, tag in zip(expressions, tags)]
 
     assembler = SystemAssembler(a, L, bc)
     A = PETScMatrix();
@@ -52,7 +53,8 @@ def mapping_generator(f, bdry_expr, bdry_chi):
     while True:
         time_value = yield
 
-        bdry_expr.t = time_value
+        for expr in expressions:
+            expr.t = time_value
         assembler.assemble(b)
         
         solver.solve(x, b)
@@ -90,27 +92,40 @@ if __name__ == '__main__':
                                   A=A_value, k=k_value, c=c_value, t=t_value)
 
     # -------------------------------------------------------------
+
+    top, bottom = 2, 1
+    left, right = 3, 4
+    if False:
+        n = 32
+        mesh = RectangleMesh(Point(0.5, -1), Point(1, 1), n, n)
+
+        bdries = FacetFunction('size_t', mesh, 0)
     
-    n = 32
-    mesh = RectangleMesh(Point(0.5, -1), Point(1, 1), n, n)
+        CompiledSubDomain('near(x[1], 1)').mark(bdries, top)
+        CompiledSubDomain('near(x[1], -1)').mark(bdries, bottom)
+        CompiledSubDomain('near(x[0]-0.5, 0)').mark(bdries, left)
+        CompiledSubDomain('near(x[0]-1, 0)').mark(bdries, right)
+    else:
+        from domain_generation import generate_mesh
+        
+        mesh, bdries = generate_mesh(r_inner=0.5,
+                                     r_outer=1.0,
+                                     length=2,
+                                     inner_p=(0.5, 0.0),
+                                     outer_p=(0.8, 0.0),
+                                     inner_size=0.5,
+                                     outer_size=1.,
+                                     size=1.,
+                                     scale=1./2**4,
+                                     save='')
+
+        
+    bdry_exprs = [Expression(ccode(bdry_motion).replace('M_PI', 'pi'),
+                             A=A_value, k=k_value, c=c_value, t=t_value, degree=3),
+                  Expression('0', degree=1)]
 
     M = FunctionSpace(mesh, 'CG', 2)
     f = Function(M)
-
-    # Pertuebed Id
-    bdry_chi = CompiledSubDomain('near((x[0]-0.5)*(x[0]-1), 0)')
-    # bdry_chi = DomainBoundary()
-    bdry_expr = Expression('near(x[0], 0.5) ? %s : 0' % ccode(bdry_motion).replace('M_PI', 'pi'),
-                           A=A_value, k=k_value, c=c_value, t=t_value, degree=3)
-
-    top, bottom = 2, 1 
-    top_chi = CompiledSubDomain('near(x[1], 1)')
-    bottom_chi = CompiledSubDomain('near(x[1], -1)')
-
-    bdries = FacetFunction('size_t', mesh, 0)
-    top_chi.mark(bdries, top)
-    bottom_chi.mark(bdries, bottom)
-    
 
     # ----------------------------------------------------------------
     
@@ -141,8 +156,8 @@ if __name__ == '__main__':
         h_top*inner(v, dot(transpose(inv(F)), n))*J*ds(top) +\
         h_bottom*inner(v, dot(transpose(inv(F)), n))*J*ds(bottom)
               
-    bcs = [DirichletBC(W.sub(0), bdry_velocity, 'near(x[0], 0.5)'),
-           DirichletBC(W.sub(0), Constant((0, 0)), 'near(x[0], 1)')]
+    bcs = [DirichletBC(W.sub(0), bdry_velocity, bdries, left),
+           DirichletBC(W.sub(0), Constant((0, 0)), bdries, right)]
 
     wh = Function(W)
 
@@ -154,15 +169,15 @@ if __name__ == '__main__':
     assigner = FunctionAssigner([V, Q], W)
     
     # ---------------------------------------------------------------
-              
-    xy = mesh.coordinates().copy()
+    
+    xy = mesh.coordinates().copy()              
     x, y = xy.T
 
     f_mesh = Mesh(mesh)
     fuh = Function(FunctionSpace(f_mesh, v_elm))
     fph = Function(FunctionSpace(f_mesh, p_elm))
     
-    gen = mapping_generator(f, bdry_expr, bdry_chi)
+    gen = mapping_generator(f, bdries, expressions=bdry_exprs, tags=[left, right])
 
     t_min = []
     u_out, p_out = File('./data/F_uh.pvd'), File('./data/F_ph.pvd')
