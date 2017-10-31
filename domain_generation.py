@@ -160,6 +160,16 @@ def generate_mesh(r_inner, r_outer, length, inner_p=None, outer_p=None, inner_si
 
     # Fill in the extrapoints 
     polygon, tags = compute_polygon(points)
+
+    # FIXME: distance of the side curves
+    for left, right in zip(tags[:tags.index(2)], reversed(tags[tags.index(2):tags.index(1)])):
+        print left, (tags.index(left), tags.index(left) + 1)
+        print right, (tags.index(right), tags.index(right) + 1)
+        print 
+    
+
+
+    
     geo = gmsh_closed_polygon(polygon, line_tags=tags, size=1.)
     xmls = geo_to_xml(geo, scale, save=save)
 
