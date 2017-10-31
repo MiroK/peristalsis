@@ -69,6 +69,53 @@ def geo_to_xml(geo, scale, save='', dir='./meshes'):
     return [os.path.join(dir, xml_file % root), os.path.join(dir, xml_facets % root)]
 
 
+def compute_polygon(points):
+    ''''
+    You are given p0-------p5
+                   \        \p4
+                    \      /
+                    p1    |
+                    /     |
+                  p2-------p3
+
+    Here I insert point to left and right side.
+    '''
+    assert len(points) == 6
+    # For same height the symmetry is already there
+    if abs(points[1][1] - points[4][1]) < 1E-13:
+        # Top is 1, bottom is 2. Left takes first
+        tags = [3, 4, 2, 5, 6, 1]
+        return points, tags
+
+    def insert_point(p, (A, B)):
+        s = (A[1]-p[1])/float(A[1]-B[1])
+        #
+        return (A[0] + s*(B[0]-A[0]), A[1] + s*(B[1]-A[1]), p[-1])
+    
+    # If p1 is higher it inserts into p5, p4 and p4 is inserted p1 and p2
+    if points[1][1] > points[4][1]:
+        points = (points[0],
+                  points[1],
+                  insert_point(points[4], (points[1], points[2])),
+                  points[2],
+                  points[3],
+                  points[4],
+                  insert_point(points[1], (points[4], points[5])),
+                  points[5])
+    else:
+        points = (points[0],
+                  insert_point(points[4], (points[0], points[1])),
+                  points[1],
+                  points[2],
+                  points[3],
+                  insert_point(points[1], (points[3], points[4])),
+                  points[4],
+                  points[5])
+        
+    tags = [3, 4, 5, 2, 6, 7, 8, 1]
+    return points, tags
+
+
 def generate_mesh(r_inner, r_outer, length, inner_p=None, outer_p=None, inner_size=1., outer_size=1.,
                   size=1., scale=0.5, save='', dir='./meshes'):
     '''Special case for peristalsis'''
@@ -89,11 +136,14 @@ def generate_mesh(r_inner, r_outer, length, inner_p=None, outer_p=None, inner_si
     assert r_outer > r_inner > 0
     assert length > 0
     # Setup geo
+
     # Left half
     points = [(r_inner, length/2., inner_size)]
     if inner_p is not None:
         assert -length/2. < inner_p[1] < length/2.
-        points.append(inner_p + (inner_size, ))
+    else:
+        inner_p = (r_inner, 0)
+    points.append(inner_p + (inner_size, ))
         
     points.append((r_inner, -length/2., inner_size))
 
@@ -102,15 +152,15 @@ def generate_mesh(r_inner, r_outer, length, inner_p=None, outer_p=None, inner_si
     
     if outer_p is not None:
         assert -length/2. < outer_p[1] < length/2.
-        points.append(outer_p + (size, ))
+    else:
+        outer_p = (r_outer, 0)
+    points.append(outer_p + (outer_size, ))
 
     points.append((r_outer, length/2., outer_size))
 
-    # Left is 3, down is 1, right 4, top 2
-    line_tags = [3, 3, 1, 4, 4, 2]
-
-    # Make geo
-    geo = gmsh_closed_polygon(points, line_tags, size)
+    # Fill in the extrapoints 
+    polygon, tags = compute_polygon(points)
+    geo = gmsh_closed_polygon(polygon, line_tags=tags, size=1.)
     xmls = geo_to_xml(geo, scale, save=save)
 
     # Return as the output that peristalsis solver will use

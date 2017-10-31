@@ -202,7 +202,6 @@ if __name__ == '__main__':
         fuh.vector().zero(); fuh.vector().axpy(1, uh.vector())
         fph.vector().zero(); fph.vector().axpy(1, ph.vector())
         
-
         u_out << (fuh, t)
         p_out << (fph, t)
 
