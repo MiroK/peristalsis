@@ -44,7 +44,7 @@ def geo_to_xml(geo, scale, save='', dir='./meshes'):
     '''Gmsh -> dolfin-convert (optinally save)'''
     root, _ = os.path.splitext(geo)
     msh_file = '.'.join([root, 'msh'])
-    subprocess.call(['gmsh -2 -clscale %g -optimize %s' % (scale, geo)], shell=True)
+    subprocess.call(['gmsh -2 -clscale %g -optimize %s -format msh2' % (scale, geo)], shell=True)
     assert os.path.exists(msh_file)
 
     # Convert to xdmf
