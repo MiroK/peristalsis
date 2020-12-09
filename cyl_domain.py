@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
     top, bottom = 2, 1
     left, right = 3, 4
-    if False:
+    if True:
         n = 32
         mesh = RectangleMesh(Point(0.5, -1), Point(1, 1), n, n)
 
